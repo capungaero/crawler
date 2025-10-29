@@ -2,11 +2,8 @@
 const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
-  output: 'export',
-  basePath: process.env.NODE_ENV === 'production' ? '/crawler' : '',
-  assetPrefix: process.env.NODE_ENV === 'production' ? '/crawler/' : '',
   images: {
-    unoptimized: true,
+    domains: ['i.ytimg.com', 'yt3.ggpht.com', 'yt3.googleusercontent.com'],
   },
   experimental: {
     appDir: true,
