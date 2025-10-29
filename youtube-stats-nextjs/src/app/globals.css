@@ -1,0 +1,31 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  @apply bg-gray-100 text-gray-900;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  @apply font-bold;
+}
+
+a {
+  @apply text-blue-600 hover:text-blue-500;
+}
+
+.container {
+  @apply mx-auto px-4;
+}
+
+.card {
+  @apply bg-white shadow-md rounded-lg p-4;
+}
+
+.spinner {
+  @apply animate-spin h-5 w-5 text-blue-500;
+}
+
+.toast {
+  @apply fixed bottom-4 right-4 bg-white shadow-lg rounded-lg p-4;
+}
