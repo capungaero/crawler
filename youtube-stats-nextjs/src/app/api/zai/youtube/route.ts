@@ -1,11 +1,6 @@
 import { NextResponse } from 'next/server';
 
 const YT_BASE = 'https://www.googleapis.com/youtube/v3';
-const API_KEY = process.env.YOUTUBE_API_KEY;
-
-if (!API_KEY) {
-  throw new Error('Missing YOUTUBE_API_KEY in environment');
-}
 
 type Timeframe = { label: string; days: number };
 
@@ -53,25 +48,25 @@ async function fetchJson(url: string) {
   return res.json();
 }
 
-async function resolveChannelIdByQuery(q: string) {
-  const url = `${YT_BASE}/search?part=snippet&type=channel&maxResults=1&q=${encodeURIComponent(q)}&key=${API_KEY}`;
+async function resolveChannelIdByQuery(q: string, apiKey: string) {
+  const url = `${YT_BASE}/search?part=snippet&type=channel&maxResults=1&q=${encodeURIComponent(q)}&key=${apiKey}`;
   const data = await fetchJson(url);
   const item = data.items?.[0];
   return item?.snippet?.channelId ?? item?.id?.channelId ?? null;
 }
 
-async function getChannelStatistics(channelId: string) {
-  const url = `${YT_BASE}/channels?part=statistics,snippet&id=${channelId}&key=${API_KEY}`;
+async function getChannelStatistics(channelId: string, apiKey: string) {
+  const url = `${YT_BASE}/channels?part=statistics,snippet&id=${channelId}&key=${apiKey}`;
   const data = await fetchJson(url);
   const c = data.items?.[0];
   return c ?? null;
 }
 
-async function listVideosInTimeframe(channelId: string, publishedAfter: string) {
+async function listVideosInTimeframe(channelId: string, publishedAfter: string, apiKey: string) {
   let nextPageToken = '';
   const videoIds: string[] = [];
   do {
-    const url = `${YT_BASE}/search?part=snippet&channelId=${channelId}&publishedAfter=${publishedAfter}&type=video&maxResults=50${nextPageToken ? `&pageToken=${nextPageToken}` : ''}&key=${API_KEY}`;
+    const url = `${YT_BASE}/search?part=snippet&channelId=${channelId}&publishedAfter=${publishedAfter}&type=video&maxResults=50${nextPageToken ? `&pageToken=${nextPageToken}` : ''}&key=${apiKey}`;
     const data = await fetchJson(url);
     for (const it of data.items || []) {
       if (it.id?.videoId) videoIds.push(it.id.videoId);
@@ -81,13 +76,13 @@ async function listVideosInTimeframe(channelId: string, publishedAfter: string) 
   return videoIds;
 }
 
-async function getVideosStatistics(ids: string[]) {
+async function getVideosStatistics(ids: string[], apiKey: string) {
   if (ids.length === 0) return [];
   const chunks: string[][] = [];
   for (let i = 0; i < ids.length; i += 50) chunks.push(ids.slice(i, i + 50));
   const results = [];
   for (const c of chunks) {
-    const url = `${YT_BASE}/videos?part=statistics&id=${c.join(',')}&key=${API_KEY}`;
+    const url = `${YT_BASE}/videos?part=statistics&id=${c.join(',')}&key=${apiKey}`;
     const data = await fetchJson(url);
     for (const it of data.items || []) results.push(it.statistics);
   }
@@ -96,6 +91,12 @@ async function getVideosStatistics(ids: string[]) {
 
 export async function POST(req: Request) {
   try {
+    const API_KEY = process.env.YOUTUBE_API_KEY;
+    
+    if (!API_KEY) {
+      return NextResponse.json({ error: 'YouTube API key not configured' }, { status: 500 });
+    }
+
     const body = await req.json();
     const input = body?.url ?? body?.channel ?? body?.id;
     if (!input) {
@@ -106,13 +107,13 @@ export async function POST(req: Request) {
     let channelId = parsed.channelId;
     if (!channelId) {
       // try resolve by query/handle
-      channelId = await resolveChannelIdByQuery(parsed.query ?? input);
+      channelId = await resolveChannelIdByQuery(parsed.query ?? input, API_KEY);
       if (!channelId) {
         return NextResponse.json({ error: 'Channel not found' }, { status: 404 });
       }
     }
 
-    const channel = await getChannelStatistics(channelId);
+    const channel = await getChannelStatistics(channelId, API_KEY);
     if (!channel) {
       return NextResponse.json({ error: 'Failed to fetch channel statistics' }, { status: 500 });
     }
@@ -124,8 +125,8 @@ export async function POST(req: Request) {
     const recaps: Record<string, { videos: number; views: number }> = {};
     for (const tf of TIMEFRAMES) {
       const after = isoDaysAgo(tf.days);
-      const videoIds = await listVideosInTimeframe(channelId, after);
-      const vstats = await getVideosStatistics(videoIds);
+      const videoIds = await listVideosInTimeframe(channelId, after, API_KEY);
+      const vstats = await getVideosStatistics(videoIds, API_KEY);
       const views = vstats.reduce((s, v) => s + Number(v.viewCount ?? 0), 0);
       recaps[tf.label] = { videos: videoIds.length, views };
     }
